@@ -10,11 +10,10 @@
 # E-mail      : wkim22@crimson.ua.edu
 # ----------------------------------------------------------------------
 
-getwd()
 drct <- paste0(getwd(), "/Data/124621-V1/replicate_monitor/1_build")
 
 epa.2001 <- read.csv(file = paste0(drct, "/epa/raw/annual_all_2001.csv"),
                   header = TRUE) 
-head(dta.1, 10)
-str(dta.1)
-summary(dta.1)
+head(epa.2001, 10)
+str(epa.2001)
+summary(epa.2001)
