@@ -1,0 +1,16 @@
+---
+title: "Readme: Data Description"
+output: pdf_document
+date: "`r Sys.Date()`"
+author: "Wonjong Kim"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Data Description
+### Monitor Data
+PM monitor characteristics come from EPA's
+
+### Satellite Data
