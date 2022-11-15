@@ -3,7 +3,7 @@
 # ----------------------------------------------------------------
 # Contact Information--------------------------------
 
-# Modified    : Nov 10 2022
+# Modified    : Nov 15 2022
 # Created     : Oct 25 2022
 # Author      : Wonjong Kim
 # Affiliation : University of Alabama
@@ -23,13 +23,33 @@ str(epa.2001)
 summary(epa.2001)
 
 ## Just use PM10 and PM2.5
-epa.2001 <- epa.2001[Parameter.Code == 88101|
-                     Parameter.Code == 81102]
+for (PM in c("PM10", "PM25")){
+  Pname <- ifelse(PM == "PM10", "epa.2001.PM10", "epa.2001.PM25")
+  Pcode <- ifelse(PM == "PM10", 81102, 88101)
+  Pstan <- ifelse(PM == "PM10", "PM10 24-hour 2006", "PM25 24-hour 2006")
+  
+  
+  
+  assign(Pname, epa.2001[Parameter.Code == Pcode])
+  
+  
+  ## Check 1 obs is state + county + site + poc + sample duration + eventtype + pollutantstandard 
+  ### sort
+  setorder(get(Pname), State.Code, County.Code, Site.Num, POC, 
+                     Sample.Duration, Event.Type, Pollutant.Standard)
+  
+  ## Keep hourdata(2006 standard)
+  assign(Pname, get(Pname)[Pollutant.Standard == Pstan])
 
-## Check 1 obs is state + county + site + poc + sample duration + eventtype + pollutantstandard 
-### sort
-setorder(epa.2001, State.Code, County.Code, Site.Num, POC, 
-                   Sample.Duration, Event.Type, Pollutant.Standard)
+  
+  ## Keep relevant variables
+  
+  selectvar <- c("State.Code", "County.Code", "Site.Num", "POC", "Year",
+                 "Completeness.Indicator", "Valid.Day.Count", "Required.Day.Count",
+                 "Null.Data.Count", "Arithmetic.Mean",
+                 "X99th.Percentile", "X98th.Percentile", "X95th.Percentile",
+                 "X90th.Percentile", "X75th.Percentile", "X50th.Percentile",
+                 "X10th.Percentile")
+  assign(Pname, get(Pname)[,..selectvar])
 
-## Keep relevant variables
-
+}
