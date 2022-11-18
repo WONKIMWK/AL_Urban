@@ -1,9 +1,10 @@
+rm(list = ls())
 # -------------------------------------------------------------------------
 # Urban Replication: Unwatched pollution
 # ----------------------------------------------------------------
 # Contact Information--------------------------------
 
-# Modified    : Nov 15 2022
+# Modified    : Nov 17 2022
 # Created     : Oct 25 2022
 # Author      : Wonjong Kim
 # Affiliation : University of Alabama
@@ -11,15 +12,15 @@
 # ----------------------------------------------------------------------
 
 
-# PM monitor data
+# PM monitor data --------------------------------------
 # Import first file, 2001
 drct <- paste0(getwd(), "/Data/1_build")
 
-epa.2001 <- read.table(file = paste0(drct, "/epa/raw/annual_all_2001.csv"),
-                      sep = ",",
-                      quote = '\"', 
-                      header = TRUE,
-                      colClasses = "character") 
+epa.2001 <- read.csv(file = paste0(drct, "/epa/raw/annual_all_2001.csv"),
+                  sep = ",",
+                  quote = '\"', 
+                  header = TRUE, 
+                  colClasses = "character") 
 setDT(epa.2001)
 
 head(epa.2001, 10)
@@ -31,7 +32,6 @@ for (PM in c("PM10", "PM25")){
   Pname <- ifelse(PM == "PM10", "epa.2001.PM10", "epa.2001.PM25")
   Pcode <- ifelse(PM == "PM10", "81102", "88101")
   Pstan <- ifelse(PM == "PM10", "PM10 24-hour 2006", "PM25 24-hour 2006")
-  
   
   
   assign(Pname, epa.2001[Parameter.Code == Pcode])
@@ -118,22 +118,59 @@ for (a in c("POC", "Year", "Valid.Day.Count", "Required.Day.Count",
 
 
 
-# Monitor entry-exit info
-entext <- read.csv(file = paste0(drct, "/epa/raw/aqs_monitors.csv"),
-                   sep = ",",
-                   quote = '\"', 
-                   header = TRUE,
-                   colClasses = "character")
+# Monitor entry-exit info ------------------------------------------------
+for (PM in c("PM10", "PM25")){
+  Pname <- ifelse(PM == "PM10", "entext.PM10", "entext.PM25")
+  Pcode <- ifelse(PM == "PM10", "81102", "88101")
+  
+  entext <- read.csv(file = paste0(drct, "/epa/raw/aqs_monitors.csv"),
+                     sep = ",",
+                     quote = '\"', 
+                     header = TRUE,
+                     colClasses = "character")
+  
+  str(entext)
+  
+  setDT(entext)
+  
+  # Drop unused obs (In paper)
+  assign(Pname, entext[State.Code != "40" & 
+                         County.Code != "71" &
+                         Site.Number != "604" &
+                         POC != " 3"&
+                         Monitor.Type != "SPM"]
+         )  
+  setDT(get(Pname))
+  ## only PM10 or PM2.5
+  assign(Pname, get(Pname)[Parameter.Code == "81102"])
+  
+  ## Drop monitors in CC (Canada, Mexico)
+  
+  setorder(get(Pname), State.Code, County.Code, Site.Number, 
+           Parameter.Code, POC)
+  
+  
+  # Keep relevant variables
+  selectvar <- c("State.Code", "County.Code", "Site.Number", "POC",
+                 "First.Year.of.Data", "Last.Sample.Date"
+                 )
+  assign(Pname, get(Pname)[,..selectvar])
+  # Rename variables
+  setnames(get(Pname), c("Site.Number"), c("Site.Num"))
 
-str(entext)
+}
 
-setDT(entext)
+# Convert some variables as numeric
+for (a in c("POC", "First.Year.of.Data")){
+  entext.PM10 <- entext.PM10[,a:= as.numeric(get(a)),with = FALSE]
+  entext.PM25 <- entext.PM25[,a:= as.numeric(get(a)),with = FALSE]
+}
 
-entext.PM10 <- entext[State.Code != "40" & 
-                      County.Code != "71" &
-                      Site.Number != "604" &
-                      POC != " 3"&
-                      Monitor.Type != "SPM"]
+str(epa.master.PM10)
+str(entext.PM10)
 
-setorder(entext.PM10, State.Code, County.Code, Site.Number, 
-         Parameter.Code, POC)
+# Merge annual & entry exit data ----------------------------------------------------
+setkey(epa.master.PM10, State.Code, County.Code, Site.Num, POC)
+setkey(entext.PM10, State.Code, County.Code, Site.Num, POC)
+# Merge m:1 (left join)
+epa.PM10 <- entext.PM10[epa.master.PM10]
