@@ -170,7 +170,64 @@ str(epa.master.PM10)
 str(entext.PM10)
 
 # Merge annual & entry exit data ----------------------------------------------------
+
 setkey(epa.master.PM10, State.Code, County.Code, Site.Num, POC)
 setkey(entext.PM10, State.Code, County.Code, Site.Num, POC)
 # Merge m:1 (left join)
 epa.PM10 <- entext.PM10[epa.master.PM10]
+
+setkey(epa.master.PM25, State.Code, County.Code, Site.Num, POC)
+setkey(entext.PM25, State.Code, County.Code, Site.Num, POC)
+# Merge m:1 (left join)
+epa.PM25 <- entext.PM25[epa.master.PM10]
+
+# Remove 
+rm(list = ls()[!ls() %in% c("drct", "epa.PM10", "epa.PM25")])
+
+# Melt(Collapse monitor level profile to site level profile) ----------------------------
+epa.full <- bind_rows(epa.PM10, epa.PM25)
+setDT(epa.full)
+# Keep complete monitors (As paper did)
+epa.full <- epa.full[Completeness.Indicator != "N"]
+
+str(epa.full)
+# Monitor offdays indicators (by monitor)
+## 1-in-k days(6, 3, 1 days.)
+epa.full <- epa.full[Required.Day.Count %in% c(60, 61), schd1.1in6d := 1]
+epa.full <- epa.full[!Required.Day.Count %in% c(60, 61), schd1.1in6d := 0]
+
+epa.full <- epa.full[Required.Day.Count %in% c(121, 122), schd1.1in3d := 1]
+epa.full <- epa.full[!Required.Day.Count %in% c(121, 122), schd1.1in3d := 0]
+
+epa.full <- epa.full[Required.Day.Count %in% c(365, 366), schd1.1in1d := 1]
+epa.full <- epa.full[!Required.Day.Count %in% c(365, 366), schd1.1in1d := 0]
+
+# Melt site-year level
+## (See how many monitors in the sites has offdays, portion.)
+epa.col <- epa.full[, .(schd1.1in6d = mean(schd1.1in6d),
+                        schd1.1in3d = mean(schd1.1in3d),
+                        schd1.1in1d = mean(schd1.1in1d)),
+                    by = .(State.Code, County.Code, Site.Num, Year)]
+
+## Two indicators
+## Offdays in any site
+epa.col <- epa.col[schd1.1in6d != 0, any1in6d := 1]
+epa.col <- epa.col[schd1.1in6d == 0, any1in6d := 0]
+
+epa.col <- epa.col[schd1.1in3d != 0, any1in3d := 1]
+epa.col <- epa.col[schd1.1in3d == 0, any1in3d := 0]
+
+epa.col <- epa.col[schd1.1in1d != 0, any1in1d := 1]
+epa.col <- epa.col[schd1.1in1d == 0, any1in1d := 0]
+## Offdays in all sites
+epa.col <- epa.col[schd1.1in6d == 1, all1in6d := 1]
+epa.col <- epa.col[schd1.1in6d != 1, all1in6d := 0]
+
+epa.col <- epa.col[schd1.1in3d == 1, all1in3d := 1]
+epa.col <- epa.col[schd1.1in3d != 1, all1in3d := 0]
+
+epa.col <- epa.col[schd1.1in1d == 1, all1in1d := 1]
+epa.col <- epa.col[schd1.1in1d != 1, all1in1d := 0]
+
+
+# Map sites data to grid
