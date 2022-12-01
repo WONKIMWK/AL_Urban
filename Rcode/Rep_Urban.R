@@ -4,7 +4,7 @@ rm(list = ls())
 # ----------------------------------------------------------------
 # Contact Information--------------------------------
 
-# Modified    : Nov 17 2022
+# Modified    : Nov 30 2022
 # Created     : Oct 25 2022
 # Author      : Wonjong Kim
 # Affiliation : University of Alabama
@@ -230,4 +230,19 @@ epa.col <- epa.col[schd1.1in1d == 1, all1in1d := 1]
 epa.col <- epa.col[schd1.1in1d != 1, all1in1d := 0]
 
 
-# Map sites data to grid
+# Map sites data to grid (Use modified gis data)
+
+### Grid data
+GRD.raw <- sf::st_read(paste0(drct, "/epa/proc/gisout_site_to_grid_cw.shp"))
+setDT(GRD.raw)
+
+GRD <- GRD.raw[, c("statecode", "countycode", "sitenum", "OBJECTID")]
+setnames(GRD, c("statecode", "countycode", "sitenum", "OBJECTID"),
+         c("State.Code", "County.Code", "Site.Num", "gridID"))
+
+# US National Grid data
+USNG.raw <- sf::st_read(paste0(drct, "/usng/proc/gisout_grid_to_county_cw.shp"))
+setDT(USNG.raw)
+USNG <- USNG.raw[, c("OBJECTID", "STATE", "COUNTY")]
+
+USNG 
