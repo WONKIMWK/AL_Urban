@@ -230,7 +230,7 @@ epa.col <- epa.col[schd1.1in1d == 1, all1in1d := 1]
 epa.col <- epa.col[schd1.1in1d != 1, all1in1d := 0]
 
 
-# Map sites data to grid (Use modified gis data)
+## Map sites data to grid (Use modified GIS data)
 
 ### Grid data
 GRD.raw <- sf::st_read(paste0(drct, "/epa/proc/gisout_site_to_grid_cw.shp"))
@@ -240,9 +240,30 @@ GRD <- GRD.raw[, c("statecode", "countycode", "sitenum", "OBJECTID")]
 setnames(GRD, c("statecode", "countycode", "sitenum", "OBJECTID"),
          c("State.Code", "County.Code", "Site.Num", "gridID"))
 
-# US National Grid data
+
+# US National Grid data --------------------------------------------------
 USNG.raw <- sf::st_read(paste0(drct, "/usng/proc/gisout_grid_to_county_cw.shp"))
 setDT(USNG.raw)
 USNG <- USNG.raw[, c("OBJECTID", "STATE", "COUNTY")]
 
-USNG 
+## generate variables
+USNG <- USNG[, countyfip := paste0(STATE,COUNTY)]
+USNG <- USNG[countyfip == "NANA", countyfip := NA]
+
+## rename
+setnames(USNG, c("OBJECTID", "STATE"), c("gridID", "statefip"))
+USNG <- USNG[,c("gridID", "statefip", "countyfip")]
+
+# Drop the missing
+USNG <- USNG[!countyfip %in% NA]
+
+
+# Satellite Aerosol data -----------------------------------------------------
+## Hard to deal with GIS: use interim dta file instead...
+## Already organized one.
+modis.raw <- haven::read_dta(paste0(drct, "/modis/modis_grid_day.dta"))
+
+# AirNow Air quality Action Day data (Weather Forecast data)
+
+
+
