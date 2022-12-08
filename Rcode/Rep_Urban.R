@@ -4,7 +4,7 @@ rm(list = ls())
 # ----------------------------------------------------------------
 # Contact Information--------------------------------
 
-# Modified    : Nov 30 2022
+# Modified    : Dec 07 2022
 # Created     : Oct 25 2022
 # Author      : Wonjong Kim
 # Affiliation : University of Alabama
@@ -270,8 +270,37 @@ Actday.raw <- read.csv(file = paste0(drct, "/actday/raw/ActionDayForecasts.csv")
                        quote = '\"', 
                        header = TRUE, 
                        colClasses = "character")
+setDT(Actday.raw)
+Actday.raw <- Actday.raw[,Latitude := as.numeric(Latitude)]
+Actday.raw <- Actday.raw[,Longitude := as.numeric(Longitude)]
+
+
+## Generate group ID
+Actday <- Actday.raw[, AreaID := .GRP, by = .(ReportingArea, State)]
+## Collapse down to area level and keep lat long data
+Actday <- Actday[,.(ReportingArea, AreaID, Latitude, Longitude)]
+Actday <- Actday[,.SD[1],  by = .(AreaID)]
+Actday <- Actday[,Latitude := as.numeric(Latitude)]
+Actday <- Actday[,Longitude := as.numeric(Longitude)]
+
+# CBSA boundary file
+CBSA <- sf::st_read(paste0(drct, "/actday/proc/gisout_areaID_to_cbsa_cw.shp"))
+setnames(CBSA, c("latitude", "longitude"), c("Latitude", 'Longitude'))
+setDT(CBSA)
+
+setkey(CBSA, AreaID, Latitude, Longitude)
+setkey(Actday, AreaID, Latitude, Longitude)
+
+ACT <- Actday[CBSA]
+
+### Combine code to Actday data
+setkey(Actday.raw, AreaID, Latitude, Longitude)
+setkey(ACT, AreaID, Latitude, Longitude)
+Act.pol <- ACT[Actday.raw]
+
 
 # Temperature: Global Historical Climatology Network(GHCN) ---------------------
+## Use station unique data
 GHCN.2001 <- read.csv(file = paste0(drct, "/ghcn/raw/2001-2013/2001.csv"),
                        sep = ",",
                        quote = '\"', 
@@ -281,13 +310,37 @@ GHCN.2001 <- read.csv(file = paste0(drct, "/ghcn/raw/2001-2013/2001.csv"),
 setDT(GHCN.2001)
 GHCN.2001 <- GHCN.2001[V6 %in% ""]
 
+### Data is too large, use processed data (sample data above)
+GHCN <- haven::read_dta(paste0(drct, "/ghcn/ghcn_county_day.dta"))
+
+
+
 # Wind Speed and direction data: North American Regional Reanalysis(NARR) ---------
 
 
 # Census administrative boundary data ------------------------------------------
 
 ## Core based stat area shape file
+CBSA.US <- sf::st_read(paste0(drct, "/geo/cbsa_2013/cb_2013_us_cbsa_5m.shp"))
 
 ## Census county shapefile
 
+Cnty.Cen <- sf::st_read(paste0(drct, "/geo/county_2010/cnty_cen2010.shp"))
 
+
+# Regression file: site main regression
+head(epa.col)
+
+## expand to daily panel
+epa.daily <- epa.col
+for (i in 1:365){
+  epa.daily <- bind_rows(epa.daily, epa.col)
+}
+setDT(epa.daily)
+
+## Generate countyfip code
+epa.fu <- epa.full[,countyfip := paste0(State.Code, County.Code)]
+epa.full <- epa.full[,countyfip := as.numeric(countyfip)]
+setkey(epa.full, Year, countyfip)
+
+## merge with 
