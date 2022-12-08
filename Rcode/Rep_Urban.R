@@ -263,7 +263,31 @@ USNG <- USNG[!countyfip %in% NA]
 ## Already organized one.
 modis.raw <- haven::read_dta(paste0(drct, "/modis/modis_grid_day.dta"))
 
-# AirNow Air quality Action Day data (Weather Forecast data)
+# AirNow Air quality Action Day data (Weather Forecast data) --------------------
 
+Actday.raw <- read.csv(file = paste0(drct, "/actday/raw/ActionDayForecasts.csv"),
+                       sep = ",",
+                       quote = '\"', 
+                       header = TRUE, 
+                       colClasses = "character")
+
+# Temperature: Global Historical Climatology Network(GHCN) ---------------------
+GHCN.2001 <- read.csv(file = paste0(drct, "/ghcn/raw/2001-2013/2001.csv"),
+                       sep = ",",
+                       quote = '\"', 
+                       header = FALSE, 
+                       colClasses = "character")
+## keep if there is no quality issue
+setDT(GHCN.2001)
+GHCN.2001 <- GHCN.2001[V6 %in% ""]
+
+# Wind Speed and direction data: North American Regional Reanalysis(NARR) ---------
+
+
+# Census administrative boundary data ------------------------------------------
+
+## Core based stat area shape file
+
+## Census county shapefile
 
 
