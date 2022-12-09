@@ -306,14 +306,14 @@ Act.pol <- ACT[Actday.raw]
 
 # Temperature: Global Historical Climatology Network(GHCN) ---------------------
 ## Use station unique data
-GHCN.2001 <- read.csv(file = paste0(drct, "/ghcn/raw/2001-2013/2001.csv"),
-                       sep = ",",
-                       quote = '\"', 
-                       header = FALSE, 
-                       colClasses = "character")
-## keep if there is no quality issue
-setDT(GHCN.2001)
-GHCN.2001 <- GHCN.2001[V6 %in% ""]
+# GHCN.2001 <- read.csv(file = paste0(drct, "/ghcn/raw/2001-2013/2001.csv"),
+#                        sep = ",",
+#                        quote = '\"', 
+#                        header = FALSE, 
+#                        colClasses = "character")
+# ## keep if there is no quality issue
+# setDT(GHCN.2001)
+# GHCN.2001 <- GHCN.2001[V6 %in% ""]
 
 ### Data is too large, use processed data (sample data above)
 GHCN <- haven::read_dta(paste0(drct, "/ghcn/ghcn_county_day.dta"))
@@ -323,14 +323,14 @@ setDT(GHCN)
 # Wind Speed and direction data: North American Regional Reanalysis(NARR) ---------
 
 
-# Census administrative boundary data ------------------------------------------
-
-## Core based stat area shape file
-CBSA.US <- sf::st_read(paste0(drct, "/geo/cbsa_2013/cb_2013_us_cbsa_5m.shp"))
-
-## Census county shapefile
-
-Cnty.Cen <- sf::st_read(paste0(drct, "/geo/county_2010/cnty_cen2010.shp"))
+# # Census administrative boundary data ------------------------------------------
+# 
+# ## Core based stat area shape file
+# CBSA.US <- sf::st_read(paste0(drct, "/geo/cbsa_2013/cb_2013_us_cbsa_5m.shp"))
+# 
+# ## Census county shapefile
+# 
+# Cnty.Cen <- sf::st_read(paste0(drct, "/geo/county_2010/cnty_cen2010.shp"))
 
 
 # Create Regression file: site main regression ------------------------------------

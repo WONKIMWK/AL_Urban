@@ -9,15 +9,38 @@ author: "Wonjong Kim"
 knitr::opts_chunk$set(echo = TRUE)
 
 ```
-```{r}
+```{r pressure, echo=FALSE, include=FALSE }
 source(paste0(getwd(),"/Rcode/Rep_Urban.R"))
 
 ```
 This paper is a replication report of Zou(2022), which shows the effect of intermittent monitoring of environmental standard on polluting activities. Among the results, this paper shows replication result of figure 2 in Zou(2022), which shows pollution gap between on-monitor day and off-monitor days.
 
 ## Data Description
-### Monitor Data
-PM monitor characteristics come from EPA's Air Quality System (AQS) for the years 2001 to 2013.
+### Main Data: Monitor Data
+The main dataset that this paper mainly process is PM monitor characteristics come from EPA's Air Quality System (AQS) for the years 2001 to 2013. This contains the locations of air quality monitors under the county. Among the various pollutant, Zou(2022) only uses PM10 and PM2.5 to exploit Aerosol data from Satellite image that is explained below. 
 
-### Satellite Data
-Measure of atmospheric particle pollution (hereby "aerosol"). Data came from the National aeronautics and Space Administration (NASA) Moderate Resolution Imagining Spectroradiometer (MODIS) algorithm.
+```{r echo=FALSE, warning=FALSE}
+epa.2001 <- read.csv(file = paste0(drct, "/epa/raw/annual_all_2001.csv"),
+                  sep = ",",
+                  quote = '\"', 
+                  header = TRUE, 
+                  colClasses = "character") 
+setDT(epa.2001)
+
+## Just use PM10 and PM2.5
+for (PM in c("PM10", "PM25")){
+  Pname <- ifelse(PM == "PM10", "epa.2001.PM10", "epa.2001.PM25")
+  Pcode <- ifelse(PM == "PM10", "81102", "88101")
+  Pstan <- ifelse(PM == "PM10", "PM10 24-hour 2006", "PM25 24-hour 2006")
+  
+  
+  assign(Pname, epa.2001[Parameter.Code == Pcode])
+}
+
+head(epa.2001.PM10)
+head(epa.2001.PM25)
+```
+
+### Other Dataset
+#### Aerosol Satellite Data
+This dataset is a measure of atmospheric particle pollution (hereby "aerosol"). Data came from the National aeronautics and Space Administration (NASA) Moderate Resolution Imagining Spectroradiometer (MODIS) algorithm.
