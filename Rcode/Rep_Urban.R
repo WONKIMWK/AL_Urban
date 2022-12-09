@@ -240,6 +240,10 @@ GRD <- GRD.raw[, c("statecode", "countycode", "sitenum", "OBJECTID")]
 setnames(GRD, c("statecode", "countycode", "sitenum", "OBJECTID"),
          c("State.Code", "County.Code", "Site.Num", "gridID"))
 
+setnames(GRD,
+         c("State.Code", "County.Code", "Site.Num"), 
+         c("statecode", "countycode", "sitenum"))
+
 
 # US National Grid data --------------------------------------------------
 USNG.raw <- sf::st_read(paste0(drct, "/usng/proc/gisout_grid_to_county_cw.shp"))
@@ -262,6 +266,7 @@ USNG <- USNG[!countyfip %in% NA]
 ## Hard to deal with GIS: use interim dta file instead...
 ## Already organized one.
 modis.raw <- haven::read_dta(paste0(drct, "/modis/modis_grid_day.dta"))
+setDT(modis.raw)
 
 # AirNow Air quality Action Day data (Weather Forecast data) --------------------
 
@@ -312,7 +317,7 @@ GHCN.2001 <- GHCN.2001[V6 %in% ""]
 
 ### Data is too large, use processed data (sample data above)
 GHCN <- haven::read_dta(paste0(drct, "/ghcn/ghcn_county_day.dta"))
-
+setDT(GHCN)
 
 
 # Wind Speed and direction data: North American Regional Reanalysis(NARR) ---------
@@ -328,8 +333,10 @@ CBSA.US <- sf::st_read(paste0(drct, "/geo/cbsa_2013/cb_2013_us_cbsa_5m.shp"))
 Cnty.Cen <- sf::st_read(paste0(drct, "/geo/county_2010/cnty_cen2010.shp"))
 
 
-# Regression file: site main regression
+# Create Regression file: site main regression ------------------------------------
 head(epa.col)
+
+epa.col.id <-epa.col[, siteyrID := 1:.N] 
 
 ## expand to daily panel
 epa.daily <- epa.col
@@ -337,10 +344,170 @@ for (i in 1:365){
   epa.daily <- bind_rows(epa.daily, epa.col)
 }
 setDT(epa.daily)
+### Sort
+setorder(epa.daily, State.Code, County.Code, Site.Num, Year)
+### daily variable, day of year
+epa.daily <- epa.daily[, doy := 1:.N, by = .(State.Code, County.Code, Site.Num, Year)]
+### generate date
+epa.daily <- epa.daily[, dt := paste0(1,"/",1,"/",Year)]
+epa.daily <- epa.daily[, dt := as.Date(dt, "%m/%d/%Y") + doy - 1]
+
+### Date info
+epa.daily <- epa.daily[, month := month(dt)]
+epa.daily <- epa.daily[, dow := wday(dt)]
 
 ## Generate countyfip code
-epa.fu <- epa.full[,countyfip := paste0(State.Code, County.Code)]
-epa.full <- epa.full[,countyfip := as.numeric(countyfip)]
-setkey(epa.full, Year, countyfip)
+epa.daily <- epa.daily[,countyfip := paste0(State.Code, County.Code)]
+epa.daily <- epa.daily[,countyfip := as.numeric(countyfip)]
 
-## merge with 
+# Merge relevant data ---------------------------------------------------------
+
+## merge with GHCN data (weather)
+setnames(epa.daily, 
+         c("State.Code", "County.Code", "Site.Num", "Year"), 
+         c("statecode", "countycode", "sitenum", "year"))
+
+setkey(epa.daily, countyfip, year, doy)
+setkey(GHCN, countyfip, year, doy)
+
+master.dat <- epa.daily[GHCN]
+master.dat <- master.dat[!statecode %in% NA]  # keep matched data
+
+## merge with grid data
+master.dat <- master.dat[, statecode := as.numeric(statecode)]
+master.dat <- master.dat[, countycode := as.numeric(countycode)]
+master.dat <- master.dat[, sitenum := as.numeric(sitenum)]
+setkey(master.dat, statecode, countycode, sitenum)
+setkey(GRD, statecode, countycode, sitenum)
+
+master.dat <- master.dat[GRD]
+master.dat <- master.dat[!year %in% NA]  # keep matched data
+
+## merge airosol data
+setkey(master.dat, gridID, year, doy)
+setkey(modis.raw, gridID, year, doy)
+
+master.dat <- modis.raw[master.dat]
+master.dat <- master.dat[!aod %in% NA] # keep matched data
+
+## merge observed PM2.5 data, external data
+pm25 <- haven::read_dta(paste0(drct, "/misc/pm25_site_day.dta"))
+setDT(pm25)
+
+head(pm25)
+
+setkey(master.dat, statecode, countycode, sitenum, year, doy)
+setkey(pm25, statecode, countycode, sitenum, year, doy)
+
+master.dat <- pm25[master.dat]
+master.dat <- master.dat[!pm25_inc %in% NA] # keep matched data
+
+master.dat.temp <- master.dat
+
+# Generate cyclical event day --------------------------------------------------
+Cyclic <- master.dat[, c("siteyrID", "statecode", "countycode", "sitenum", "year", "doy")]
+Cyclic <- Cyclic[, cycle_ID := 1:.N]
+
+Cyclic <- Cyclic[, eday1 := doy + 1 - 1]
+Cyclic <- Cyclic[, eday2 := doy + 2 - 1]
+Cyclic <- Cyclic[, eday3 := doy + 3 - 1]
+Cyclic <- Cyclic[, eday4 := doy + 4 - 1]
+Cyclic <- Cyclic[, eday5 := doy + 5 - 1]
+Cyclic <- Cyclic[, eday6 := doy + 6 - 1]
+
+Cyc.long <- melt(Cyclic, id.vars = c("cycle_ID", "siteyrID", "year"),
+                 measure.vars = patterns("^eday"),
+                 variable.name = "eday",
+                 value.name = "doy")
+Cyc.long <- Cyc.long[, eday := str_remove(eday, "eday")]
+Cyc.long <- Cyc.long[, eday := as.numeric(eday)]
+
+## merge with master data
+setkey(master.dat.temp, siteyrID, year, doy)
+setkey(Cyc.long, siteyrID, year, doy)
+
+master.dat <- Cyc.long[master.dat.temp]
+
+## 1 in 3 day cycle
+master.dat <- master.dat[, eday_1in3 := eday]
+master.dat <- master.dat[eday_1in3 == 4, eday_1in3 := eday - 3]
+master.dat <- master.dat[eday_1in3 == 5, eday_1in3 := eday - 3]
+master.dat <- master.dat[eday_1in3 == 6, eday_1in3 := eday - 3]
+
+## variables for regression
+master.dat <- master.dat[, tmean := (tmax+tmin)/2]
+master.dat <- master.dat[!tmean %in% NA]
+master.dat <- master.dat[, g10_tmean := min(max(10 * floor(tmean/10), 10), 90)]
+
+## Use wind speed data
+narr <- haven::read_dta(paste0(drct, "/narr/narr_county_day.dta"))
+setDT(narr)
+
+setkey(master.dat, countyfip, year, doy)
+setkey(narr, countyfip, year, doy)
+
+master.dat <- master.dat[narr]
+master.dat <- master.dat[!cycle_ID %in% NA]# keep matched data
+
+master.dat <- master.dat[, g_wdsp := cut(wdsp, 5, labels = FALSE)]
+setorder(master.dat, cycle_ID, eday)
+
+master.dat <- master.dat[, g_wdsp := g_wdsp[1], by = cycle_ID]
+
+## Log aod
+master.dat <- master.dat[, lnaod := log(aod) ]
+master.dat <- master.dat[!lnaod %in% NA]
+master.dat <- master.dat[!lnaod %in% -Inf]
+
+## group site
+master.dat <- master.dat[, g_site := .GRP, by = .(statecode, countycode, sitenum) ]
+
+
+## 1in6 treat
+master.dat <- master.dat[, offday := 1]
+master.dat <- master.dat[eday != 1, offday := 0]
+
+## 1in3 treat
+master.dat <- master.dat[, offday_1in3 := 1]
+master.dat <- master.dat[eday_1in3 != 1, offday_1in3 := 0]
+
+## Scale AOD
+master.dat <- master.dat[, aod := aod * 100]
+
+## regression
+reg <- lm(lnaod ~ factor(eday), na.action = na.omit, data = master.dat )
+print(reg)
+summary(reg)
+
+stargazer::stargazer(reg, type = "text")
+
+cis <- coefci(reg)
+
+Result <- as.data.frame(cis)
+setDT(Result)
+
+Result <- bind_cols(Result, as.data.frame(reg$coefficients))
+setDT(Result)
+
+Result <- Result[, eday := 1:.N]
+setnames(Result, c(1,2,3,4), c("ci_lower", "ci_upper", "coef", "eday"))
+
+Result <- Result[eday == 1, ci_lower := NA]
+Result <- Result[eday == 1, ci_upper := NA]
+Result <- Result[eday == 1, coef := 0]
+
+Result <- Result[, eday := eday - 7]
+Result <- Result[eday < -3, eday := eday + 6]
+
+setorder(Result, eday)
+
+ggplot(Result, aes(x = eday)) +
+  geom_line(aes(y = coef, color = "coef"))+
+  geom_line(aes(y = ci_lower, color = "ci"), linetype = "dashed")+
+  geom_line(aes(y = ci_upper, color = "ci"), linetype = "dashed")+
+  geom_point(aes(y = coef, color = "coef"))+
+  geom_point(aes(y = ci_lower, color = "ci"))+
+  geom_point(aes(y = ci_upper, color = "ci"))+
+  labs(x = "Days since scheduled monitoring", 
+       y = "log Aerosol (Pollution level)", 
+       colour = " ")
